@@ -1,6 +1,6 @@
 == A Distributed Auction System ==
 
-::Introduction::
+# Introduction
 
 You must implement a **distributed auction system** using replication:
 a distributed component which handles auctions, and provides
@@ -9,7 +9,7 @@ component must faithfully implement the semantics of the system
 described below, and must at least be resilient to one (1) crash
 failure.
 
-::MA Learning Goal::
+# MA Learning Goal
 
 The goal of this mandatory activity is that you learn (by doing) how
 to use replication to design a service that is resilent to crashes. In
@@ -18,7 +18,7 @@ that may arise are and understand how to deal with them.
 
  
 
-::API::
+# API
 
 Your system must be implemented as some number of nodes, running on
 distinct processes (no threads). Clients direct API requests to any
@@ -39,7 +39,7 @@ Comment:  if the auction is over, it returns the result, else highest bid.
 
  
 
-::Semantics::
+# Semantics
 
 Your component must have the following behaviour, for any reasonable
 sequentialisation/interleaving of requests to it:
@@ -58,7 +58,7 @@ sequentialisation/interleaving of requests to it:
 
  
 
-:: Faults :: 
+ # Faults  
 
 - Assume a network that has reliable, ordered message transport, where
   transmissions to non-failed nodes complete within a known
@@ -69,7 +69,7 @@ sequentialisation/interleaving of requests to it:
 
  
 
-:: Report ::
+ # Report 
 
 Write a 2-page report (if necessary you can go up to 3 pages)
 containing the following structure (exactly create four sections as

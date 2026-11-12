@@ -13,16 +13,29 @@ service ReplicaManager {
     rpc Replicate(BidRequest) returns (Acknowledgement);
 }
 
+enum Outcome {
+  Fail      = 1;
+  Success   = 2;
+  Exception = 3;
+}
+
 message Nothing {}
 
 message Acknowledgement {
-    int64 output = 1;
+    string output = 1;
+    int64 lamport = 2;
 }
 
 message BidRequest {
-    int64 amount = 1;
+    int64 id = 1;
+    int64 lamport = 3;
+    int64 amount = 2;
 }
 
 message BidReply {
-    bool isSuccess = 1;
+    Outcome outcome = 1;
+}
+
+message HeartbeatRequest {
+    int64 lamport = 1;
 }

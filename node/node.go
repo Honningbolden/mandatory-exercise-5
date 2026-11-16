@@ -40,21 +40,44 @@ var ports = []string{
 
 const auctionDuration = 1000
 
+// Replicates the auction state to a client
+// send to all RM that isnt leader on every state change
+func (n *Node)Replicate(ctx context.Context, s *pb.AuctionState) (*pb.Acknowledgement, error) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	n.clock = tick(s.Lamport)
+
+	// overite auction state
+	n.state = s 
+	return &pb.Acknowledgement{Output: "ok"}, nil
+}
+
+// Method that should be called every second to the current leader
+// if returnd nil asume leader is dead
 func (n *Node) Heartbeat(ctx context.Context, _ *pb.Nothing) (*pb.Nothing, error) {
 	return &pb.Nothing{}, nil
 }
 
-func (n *Node)Replicate(ctx context.Context, s *pb.AuctionState) (*pb.Acknowledgement, error) {
-	n.mu.Lock()
-    defer n.mu.Unlock()
+func (n *Node) Bid(ctx context.Context, _ *pb.BidRequest) (*pb.Acknowledgement, error) {
+	if n.AuctionState = nil {
 
-    n.clock = tick(s.Lamport)
 
-	// overite auction state
-    n.state = s 
-    return &pb.Acknowledgement{Output: "ok"}, nil
+	}
 }
 
+// 
+func (n *Node) startAuction(*pb.BidRequest) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+}
+
+func (n *Node) HeartbeatHandler() {
+	
+}
+
+// tick clock
 func (n *Node) tick(receivedClock int64) int64 {
 	n.mu.Lock()
 	defer n.mu.Unlock()

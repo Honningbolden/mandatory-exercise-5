@@ -6,6 +6,7 @@ option go_package = "auction/proto";
 
 service Auction {
     rpc Bid(BidRequest) returns (BidReply);
+    rpc confirmWin()
 }
 
 service ReplicaManager {
@@ -14,31 +15,33 @@ service ReplicaManager {
 }
 
 enum Outcome {
-  Fail      = 1;
-  Success   = 2;
-  Exception = 3;
+  Fail      = 0;
+  Success   = 1;
+  Exception = 2;
 }
 
 message Nothing {}
 
 message Bidder {
   int64 id = 1;
-  string port = 2;
-  int64 highest_bid = 3;
+  int64 highest_bid = 2;
 }
 
 message Acknowledgement {
-    string output = 1;
+    Outcome outcome = 1;
+    int64 timeLeft = 2;
+    int64 highestBid = 3;
+}
+
+message confirmWin {
+    string ClientUuid = 1
 }
 
 message BidRequest {
-    Bidder = 1;
-    int64 lamport = 4;
-    int64 amount = 5;
-}
-
-message BidReply {
-    Outcome outcome = 1;
+    string clientUuid = 1;
+    int64 clientReqNum = 2;
+    int64 lamport = 3;
+    int64 amount = 4;
 }
 
 message HeartbeatRequest {
@@ -49,6 +52,5 @@ message AuctionState {
   int64 highest_bidder_id = 1;
   int64 highest_bid = 2;
   int64 end_time = 3;
-  map<int64, Bidder> bidders = 5;
-  map<int64, bool>   seen_requests = 6;
+  int64 lamport = 4;
 }

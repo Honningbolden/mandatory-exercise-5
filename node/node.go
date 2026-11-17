@@ -93,12 +93,14 @@ func (n *Node) HeartbeatHandler(ctx context.Context, RM pb.ReplicaManagerClient)
 	}
 } 
 
+// handles bids from client
+// assumes it will only be called if this node is the leader
 func (n *Node) Bid(ctx context.Context, req *pb.BidRequest) (*pb.Acknowledgement) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
 	n.clock = n.tick(req.Lamport)
-
+	
 	if n.AuctionState = nil {
 		n.state = createAuction(req)
 		return &pb.Acknowledgement{Output: "Success"}
@@ -108,13 +110,18 @@ func (n *Node) Bid(ctx context.Context, req *pb.BidRequest) (*pb.Acknowledgement
 		n.state.highestBid = int64(req.Amount)
 		n.state.highestBidder = int64(req.ClientUuid)
 
+		// Replicate the state with other RMs
 		for i:= 1; i <= 3; i++ {
-			peers[i].Replicate(&pb.AuctionState{
+			ack, err := peers[i].Replicate(&pb.AuctionState{
 				highest_bidder_id: n.state.highestBidderId;
 				highest_bid: n.state.highestBid;
 				end_time: n.state.endTime;
 				req.Lamport: req.Lamport;
 			})
+
+			if err != nil || ack = "Fail" {
+				return &pb.Acknowledgement{Output: "Fail"}
+			}
 		}
 		return &pb.Acknowledgement{Output: "Success"}
 	}
@@ -158,7 +165,7 @@ func (n *Node) tick(receivedClock int64) int64 {
 	return n.clock
 }
 
-func (n *Node) auctionHandler (as AuctionState) (return) {
+func (n *Node) auctionHandler() {
 	// start ticker
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
@@ -172,7 +179,7 @@ func (n *Node) auctionHandler (as AuctionState) (return) {
 				continue
 			}
 
-			if time.now() = s.endtime
+			if time.now() = s.endtime 
 		}
 	}
 }

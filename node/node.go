@@ -48,6 +48,10 @@ const auctionDuration = time.Second * 10
 func (n *Node)Replicate(ctx context.Context, s *pb.AuctionState) (*pb.Acknowledgement, error) {
 
 	n.clock = tick(s.Lamport)
+	if n.state = nil {
+		n.createAuction(req)
+	}
+
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
@@ -55,6 +59,7 @@ func (n *Node)Replicate(ctx context.Context, s *pb.AuctionState) (*pb.Acknowledg
 	as := n.state
 	as.highestBid = s.HighestBid
 	as.highestBidder = s.HighestBidderId
+	as.endTime = s.end_time
 	return &pb.Acknowledgement{Output: "Sucess"}, nil
 }
 
@@ -69,7 +74,6 @@ func (n *Node) HeartbeatHandler(ctx context.Context, RM pb.ReplicaManagerClient)
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
-	//
 	for {
 		select {
 		case <-ticker.C:
@@ -142,6 +146,10 @@ func (n *Node) getLeader() {
 	return;
 }
 
+func isAucOnline() bool {
+	return n.state != nil
+}
+
 // tick clock
 func (n *Node) tick(receivedClock int64) int64 {
 	n.mu.Lock()
@@ -151,7 +159,22 @@ func (n *Node) tick(receivedClock int64) int64 {
 }
 
 func (n *Node) auctionHandler (as AuctionState) (return) {
+	// start ticker
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
 
+	s := n.state
+
+	for {
+		select {
+		case <-ticker.C:
+			if s = nil {
+				continue
+			}
+
+			if time.now() = s.endtime
+		}
+	}
 }
 
 func main() {
@@ -193,7 +216,7 @@ func main() {
 	pb.RegiseterAuctionServiceServer(s, node)
 	go grpcServer.Serve(listener)
 
-	// create peer connection
+	// create peer connections
 	for i := 1; i <= 3; i++ {
 		if (port == ports[i]) {
 			continue;
@@ -202,7 +225,8 @@ func main() {
 		// keep trying to connect until it works
 		for {
 			conn, err := grpc.NewClient(ports[i - 1], grpc.WithTransportCredentials(insecure.NewCredentials()))
-			if err = nil {
+			// brakes out of the loop once conected 
+			if err != nil {
 				break
 			}
 		}

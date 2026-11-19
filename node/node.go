@@ -2,65 +2,75 @@ package main
 
 import (
 	"context"
+	"flag"
+	"fmt"
 	"log"
+	"net"
+	"os"
+	"strconv"
+	"sync"
 	"time"
 
-	"golang.org/x/tools/go/analysis/passes/nilfunc"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	pb "auction/proto"
 )
 
 type Bidder struct {
-	id 			int64
-	client 		pb.AuctionServiceClient
+	id     int64
+	client pb.AuctionClient
 }
 
 type AuctionState struct {
-	highestBid    int64
-    highestBidderId int64
-    endTime       time.Time
+	highestBid      int64
+	highestBidderId string
+	endTime         time.Time
 }
 
 type Node struct {
-	pb.UnimplementedAuctionServiceServer
-    pb.UnimplementedReplicaManagerServiceServer
+	pb.UnimplementedAuctionServer
+	pb.UnimplementedReplicaManagerServer
 
-	mu       		sync.Mutex
-	state			*AuctionState
+	mu    sync.Mutex
+	state *AuctionState
 
-	id 		 		int64
-	clock    		int64
-	port     		int64
-	leader   		int64
-	peers    		map[int]pb.ReplicaManagerServiceClient
+	id            int64
+	clock         int64
+	port          int64
+	leader        int64
+	peers         map[int]pb.ReplicaManagerClient
+	auctionOnline bool
 }
 
 var ports = []string{
-    "5001",
-    "5002",
-    "5003",
+	"5001",
+	"5002",
+	"5003",
 }
 
 const auctionDuration = time.Second * 10
 
 // Replicates the auction state to a client
 // send to all RM that isn't leader on every state change
-func (n *Node)Replicate(ctx context.Context, s *pb.AuctionState) (*pb.Acknowledgement, error) {
+func (n *Node) Replicate(ctx context.Context, s *pb.AuctionState) (*pb.Acknowledgement, error) {
 
-	n.clock = tick(s.Lamport)
-	if n.state = nil {
-		n.createAuction(req)
-	}
+	n.tick(s.Lamport)
 
 	n.mu.Lock()
-	defer n.mu.Unlock()
+	if n.state == nil {
+		n.state = &AuctionState{}
+		n.auctionOnline = true
+	}
 
 	// overwrite auction state
 	as := n.state
 	as.highestBid = s.HighestBid
-	as.highestBidder = s.HighestBidderId
-	as.endTime = s.end_time
-	return &pb.Acknowledgement{Output: "Sucess"}, nil
+	as.highestBidderId = s.HighestBidderId
+	as.endTime = time.UnixMilli(s.EndTime)
+	n.mu.Unlock()
+
+	return &pb.Acknowledgement{Outcome: pb.Outcome_Success}, nil
 }
 
 // Method that should be called every second to the current leader
@@ -69,7 +79,7 @@ func (n *Node) Heartbeat(ctx context.Context, _ *pb.Nothing) (*pb.Nothing, error
 	return &pb.Nothing{}, nil
 }
 
-func (n *Node) HeartbeatHandler(ctx context.Context, RM pb.ReplicaManagerClient) {
+func (n *Node) HeartbeatHandler(ctx context.Context) {
 	// start ticker
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
@@ -77,7 +87,13 @@ func (n *Node) HeartbeatHandler(ctx context.Context, RM pb.ReplicaManagerClient)
 	for {
 		select {
 		case <-ticker.C:
+			if n.isLeader() {
+				continue
+			}
+
+			n.mu.Lock()
 			leader := n.peers[int(n.leader)]
+			n.mu.Unlock()
 
 			heartbeatCtx, cancel := context.WithTimeout(ctx, time.Second)
 			_, err := leader.Heartbeat(heartbeatCtx, &pb.Nothing{})
@@ -85,76 +101,115 @@ func (n *Node) HeartbeatHandler(ctx context.Context, RM pb.ReplicaManagerClient)
 
 			if err != nil {
 				log.Printf("Heartbeat failed: %v", err)
-				getLeader();
+				n.getLeader()
 			}
 		case <-ctx.Done():
 			return
 		}
 	}
-} 
+}
 
 // handles bids from client
 // assumes it will only be called if this node is the leader
-func (n *Node) Bid(ctx context.Context, req *pb.BidRequest) (*pb.Acknowledgement) {
+func (n *Node) Bid(ctx context.Context, req *pb.BidRequest) (*pb.Acknowledgement, error) {
+	lamport := n.tick(req.Lamport)
+
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
-	n.clock = n.tick(req.Lamport)
-	
-	if n.AuctionState = nil {
-		n.state = createAuction(req)
-		return &pb.Acknowledgement{Output: "Success"}
+	if n.id != n.leader {
+		return &pb.Acknowledgement{Outcome: pb.Outcome_Exception}, nil
 	}
 
-	if (req.Amount < int64(n.state.highestBid)) {
-		n.state.highestBid = int64(req.Amount)
-		n.state.highestBidder = int64(req.ClientUuid)
+	if n.state == nil {
+		n.state = n.createAuction(req)
 
-		// Replicate the state with other RMs
-		for i:= 1; i <= 3; i++ {
-			ack, err := peers[i].Replicate(&pb.AuctionState{
-				highest_bidder_id: n.state.highestBidderId;
-				highest_bid: n.state.highestBid;
-				end_time: n.state.endTime;
-				req.Lamport: req.Lamport;
+		for i, peer := range n.peers {
+			ack, err := peer.Replicate(ctx, &pb.AuctionState{
+				HighestBidderId: n.state.highestBidderId,
+				HighestBid:      n.state.highestBid,
+				EndTime:         n.state.endTime.UnixMilli(),
+				Lamport:         lamport,
 			})
 
-			if err != nil || ack = "Fail" {
-				return &pb.Acknowledgement{Output: "Fail"}
+			if err != nil || ack.Outcome != pb.Outcome_Success {
+				log.Printf("Could not replicate to node %d: %v", i, err)
 			}
 		}
-		return &pb.Acknowledgement{Output: "Success"}
+
+		return &pb.Acknowledgement{Outcome: pb.Outcome_Success}, nil
 	}
-	return &pb.Acknowledgement{Output: "Fail"}
+
+	if !n.auctionOnline {
+		return &pb.Acknowledgement{Outcome: pb.Outcome_Fail}, nil
+	}
+
+	if req.Amount > n.state.highestBid {
+		n.state.highestBid = req.Amount
+		n.state.highestBidderId = req.ClientUuid
+
+		// Replicate the state with other RMs
+		for i, peer := range n.peers {
+			ack, err := peer.Replicate(ctx, &pb.AuctionState{
+				HighestBidderId: n.state.highestBidderId,
+				HighestBid:      n.state.highestBid,
+				EndTime:         n.state.endTime.UnixMilli(),
+				Lamport:         lamport,
+			})
+
+			if err != nil || ack.Outcome != pb.Outcome_Success {
+				log.Printf("Could not replicate to node %d: %v", i, err)
+			}
+		}
+		return &pb.Acknowledgement{Outcome: pb.Outcome_Success}, nil
+	}
+	return &pb.Acknowledgement{Outcome: pb.Outcome_Fail}, nil
 }
 
-// 
-func (n *Node) createAuction(req *pb.BidRequest) (AuctionState) {
+func (n *Node) ConfirmWin(ctx context.Context, _ *pb.Nothing) (*pb.AuctionState, error) {
+	lamport := n.tick(0)
+
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	s := n.state
+	if s == nil {
+		return &pb.AuctionState{Lamport: lamport}, nil
+	}
+	return &pb.AuctionState{
+		HighestBidderId: s.highestBidderId,
+		HighestBid:      s.highestBid,
+		EndTime:         s.endTime.UnixMilli(),
+		Lamport:         lamport,
+	}, nil
+}
+
+func (n *Node) createAuction(req *pb.BidRequest) *AuctionState {
+	n.auctionOnline = true
 	return &AuctionState{
-		highestBidderId: req.clientUuid,
-		highestBid: req.Amount,
-		endTime: time.Now() + auctionDuration,
-		Lamport: req.Lamport,
+		highestBidderId: req.ClientUuid,
+		highestBid:      req.Amount,
+		endTime:         time.Now().Add(auctionDuration),
 	}
 }
 
 func (n *Node) isLeader() bool {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	
+
 	return n.id == n.leader
 }
 
 func (n *Node) getLeader() {
-	if (n.leader + 1 < len(n.peers)) {
-		n.leader++
-	}
-	log.Printf("Couldn't find new leader because all nodes have failed. Shutting down.")
-	return;
-}
+	n.mu.Lock()
+	defer n.mu.Unlock()
 
-func isAucOnline() bool {
-	return n.state != nil
+	if int(n.leader) < len(ports) {
+		n.leader++
+		log.Printf("New leader is %d", n.leader)
+		return
+	}
+	log.Fatalf("Couldn't find new leader because all nodes have failed. Shutting down.")
 }
 
 // tick clock
@@ -170,44 +225,31 @@ func (n *Node) auctionHandler() {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
-	s := n.state
-
-	for {
-		select {
-		case <-ticker.C:
-			if s = nil {
-				continue
-			}
-
-			if time.now() = s.endtime 
+	for range ticker.C {
+		n.mu.Lock()
+		if n.auctionOnline && time.Now().After(n.state.endTime) {
+			n.auctionOnline = false
 		}
+		n.mu.Unlock()
 	}
 }
 
 func main() {
 	// create flag with command to log in on port
-	portList := flag.String("ports", "", "comma-separated ports of the server nodes")
+	port := flag.Int("port", 0, "port of this node (5001, 5002 or 5003)")
 	flag.Parse()
 
-	// TODO: should not set all ports fix later 
-	if *portList == "" {
-		fmt.Fprintln(os.Stderr, "usage: node -port 5001,5002,5003")
+	if *port == 0 {
+		fmt.Fprintln(os.Stderr, "usage: node -port 5001")
 		os.Exit(1)
 	}
 
-	for _, p := range strings.Split(*portList, ",") {
-		port, err := strconv.Atoi(strings.TrimSpace(p))
-		if err != nil {
-			log.Fatalf("invalid port %q: %v", p, err)
-		}
-	}
-
 	n := &Node{
-		id: strconv.Atoi(port - 5000)
-		clock: 0
-		port: port
-		leader: 1
-		peers: make(map[int64]pb.ReplicaManagerClient)
+		id:     int64(*port - 5000),
+		clock:  0,
+		port:   int64(*port),
+		leader: 1,
+		peers:  make(map[int]pb.ReplicaManagerClient),
 	}
 
 	// Setup listener
@@ -219,35 +261,33 @@ func main() {
 	log.Printf("Connected on port %d", *port)
 
 	s := grpc.NewServer()
-	pb.RegisterReplicaManegerServiceServer(s, node)
-	pb.RegiseterAuctionServiceServer(s, node)
-	go grpcServer.Serve(listener)
+	pb.RegisterReplicaManagerServer(s, n)
+	pb.RegisterAuctionServer(s, n)
+	go s.Serve(listener)
 
 	// create peer connections
 	for i := 1; i <= 3; i++ {
-		if (port == ports[i]) {
-			continue;
+		if strconv.Itoa(*port) == ports[i-1] {
+			continue
 		}
 
 		// keep trying to connect until it works
 		for {
-			conn, err := grpc.NewClient(ports[i - 1], grpc.WithTransportCredentials(insecure.NewCredentials()))
-			// brakes out of the loop once conected 
-			if err != nil {
+			conn, err := grpc.NewClient("localhost:"+ports[i-1], grpc.WithTransportCredentials(insecure.NewCredentials()))
+			// brakes out of the loop once conected
+			if err == nil {
+				n.peers[i] = pb.NewReplicaManagerClient(conn)
 				break
 			}
 		}
 	}
-	
-	
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// open HeartBeats on all peers 
-	for i := 1; i <= 3; i++ { 
-		if (n.isLeader()) {
-			go n.HeartbeatHandler(ctx, n.peers[i])
-		}
-	}
+	// open HeartBeats on all peers
+	go n.HeartbeatHandler(ctx)
+	go n.auctionHandler()
+
+	select {}
 }

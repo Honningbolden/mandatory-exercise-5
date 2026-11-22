@@ -49,7 +49,7 @@ var ports = []string{
 	"5003",
 }
 
-const auctionDuration = time.Second * 10
+const auctionDuration = time.Second * 20
 
 // Replicates the auction state to a client
 // send to all RM that isn't leader on every state change
@@ -74,7 +74,7 @@ func (n *Node) Replicate(ctx context.Context, s *pb.AuctionState) (*pb.Acknowled
 }
 
 // Method that should be called every second to the current leader
-// if returnd nil asume leader is dead
+// if returned nil assume leader is dead
 func (n *Node) Heartbeat(ctx context.Context, _ *pb.Nothing) (*pb.Nothing, error) {
 	return &pb.Nothing{}, nil
 }
@@ -140,7 +140,7 @@ func (n *Node) Bid(ctx context.Context, req *pb.BidRequest) (*pb.Acknowledgement
 		return &pb.Acknowledgement{Outcome: pb.Outcome_Success}, nil
 	}
 
-	if !n.auctionOnline {
+	if !n.auctionOnline || !time.Now().Before(n.state.endTime) {
 		return &pb.Acknowledgement{Outcome: pb.Outcome_Fail}, nil
 	}
 

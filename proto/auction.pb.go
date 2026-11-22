@@ -160,7 +160,9 @@ func (x *Bidder) GetHighestBid() int64 {
 
 type Acknowledgement struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Output        string                 `protobuf:"bytes,1,opt,name=output,proto3" json:"output,omitempty"`
+	Outcome       Outcome                `protobuf:"varint,1,opt,name=outcome,proto3,enum=auction.Outcome" json:"outcome,omitempty"`
+	TimeLeft      int64                  `protobuf:"varint,2,opt,name=timeLeft,proto3" json:"timeLeft,omitempty"`
+	HighestBid    int64                  `protobuf:"varint,3,opt,name=highestBid,proto3" json:"highestBid,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -195,11 +197,77 @@ func (*Acknowledgement) Descriptor() ([]byte, []int) {
 	return file_proto_auction_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *Acknowledgement) GetOutput() string {
+func (x *Acknowledgement) GetOutcome() Outcome {
 	if x != nil {
-		return x.Output
+		return x.Outcome
+	}
+	return Outcome_Fail
+}
+
+func (x *Acknowledgement) GetTimeLeft() int64 {
+	if x != nil {
+		return x.TimeLeft
+	}
+	return 0
+}
+
+func (x *Acknowledgement) GetHighestBid() int64 {
+	if x != nil {
+		return x.HighestBid
+	}
+	return 0
+}
+
+type ConfirmWin struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ClientUuid    string                 `protobuf:"bytes,1,opt,name=ClientUuid,proto3" json:"ClientUuid,omitempty"`
+	Lamport       int64                  `protobuf:"varint,2,opt,name=lamport,proto3" json:"lamport,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConfirmWin) Reset() {
+	*x = ConfirmWin{}
+	mi := &file_proto_auction_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConfirmWin) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConfirmWin) ProtoMessage() {}
+
+func (x *ConfirmWin) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_auction_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConfirmWin.ProtoReflect.Descriptor instead.
+func (*ConfirmWin) Descriptor() ([]byte, []int) {
+	return file_proto_auction_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *ConfirmWin) GetClientUuid() string {
+	if x != nil {
+		return x.ClientUuid
 	}
 	return ""
+}
+
+func (x *ConfirmWin) GetLamport() int64 {
+	if x != nil {
+		return x.Lamport
+	}
+	return 0
 }
 
 type BidRequest struct {
@@ -214,7 +282,7 @@ type BidRequest struct {
 
 func (x *BidRequest) Reset() {
 	*x = BidRequest{}
-	mi := &file_proto_auction_proto_msgTypes[3]
+	mi := &file_proto_auction_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -226,7 +294,7 @@ func (x *BidRequest) String() string {
 func (*BidRequest) ProtoMessage() {}
 
 func (x *BidRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_auction_proto_msgTypes[3]
+	mi := &file_proto_auction_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -239,7 +307,7 @@ func (x *BidRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BidRequest.ProtoReflect.Descriptor instead.
 func (*BidRequest) Descriptor() ([]byte, []int) {
-	return file_proto_auction_proto_rawDescGZIP(), []int{3}
+	return file_proto_auction_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *BidRequest) GetClientUuid() string {
@@ -266,66 +334,6 @@ func (x *BidRequest) GetLamport() int64 {
 func (x *BidRequest) GetAmount() int64 {
 	if x != nil {
 		return x.Amount
-	}
-	return 0
-}
-
-type BidReply struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Outcome       Outcome                `protobuf:"varint,1,opt,name=outcome,proto3,enum=auction.Outcome" json:"outcome,omitempty"`
-	TimeLeft      int64                  `protobuf:"varint,2,opt,name=timeLeft,proto3" json:"timeLeft,omitempty"`
-	HighestBid    int64                  `protobuf:"varint,3,opt,name=highestBid,proto3" json:"highestBid,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *BidReply) Reset() {
-	*x = BidReply{}
-	mi := &file_proto_auction_proto_msgTypes[4]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *BidReply) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*BidReply) ProtoMessage() {}
-
-func (x *BidReply) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_auction_proto_msgTypes[4]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use BidReply.ProtoReflect.Descriptor instead.
-func (*BidReply) Descriptor() ([]byte, []int) {
-	return file_proto_auction_proto_rawDescGZIP(), []int{4}
-}
-
-func (x *BidReply) GetOutcome() Outcome {
-	if x != nil {
-		return x.Outcome
-	}
-	return Outcome_Fail
-}
-
-func (x *BidReply) GetTimeLeft() int64 {
-	if x != nil {
-		return x.TimeLeft
-	}
-	return 0
-}
-
-func (x *BidReply) GetHighestBid() int64 {
-	if x != nil {
-		return x.HighestBid
 	}
 	return 0
 }
@@ -376,7 +384,7 @@ func (x *HeartbeatRequest) GetLamport() int64 {
 
 type AuctionState struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
-	HighestBidderId int64                  `protobuf:"varint,1,opt,name=highest_bidder_id,json=highestBidderId,proto3" json:"highest_bidder_id,omitempty"`
+	HighestBidderId string                 `protobuf:"bytes,1,opt,name=highest_bidder_id,json=highestBidderId,proto3" json:"highest_bidder_id,omitempty"`
 	HighestBid      int64                  `protobuf:"varint,2,opt,name=highest_bid,json=highestBid,proto3" json:"highest_bid,omitempty"`
 	EndTime         int64                  `protobuf:"varint,3,opt,name=end_time,json=endTime,proto3" json:"end_time,omitempty"`
 	Lamport         int64                  `protobuf:"varint,4,opt,name=lamport,proto3" json:"lamport,omitempty"`
@@ -414,11 +422,11 @@ func (*AuctionState) Descriptor() ([]byte, []int) {
 	return file_proto_auction_proto_rawDescGZIP(), []int{6}
 }
 
-func (x *AuctionState) GetHighestBidderId() int64 {
+func (x *AuctionState) GetHighestBidderId() string {
 	if x != nil {
 		return x.HighestBidderId
 	}
-	return 0
+	return ""
 }
 
 func (x *AuctionState) GetHighestBid() int64 {
@@ -451,9 +459,19 @@ const file_proto_auction_proto_rawDesc = "" +
 	"\x06Bidder\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x1f\n" +
 	"\vhighest_bid\x18\x02 \x01(\x03R\n" +
-	"highestBid\")\n" +
-	"\x0fAcknowledgement\x12\x16\n" +
-	"\x06output\x18\x01 \x01(\tR\x06output\"\x82\x01\n" +
+	"highestBid\"y\n" +
+	"\x0fAcknowledgement\x12*\n" +
+	"\aoutcome\x18\x01 \x01(\x0e2\x10.auction.OutcomeR\aoutcome\x12\x1a\n" +
+	"\btimeLeft\x18\x02 \x01(\x03R\btimeLeft\x12\x1e\n" +
+	"\n" +
+	"highestBid\x18\x03 \x01(\x03R\n" +
+	"highestBid\"F\n" +
+	"\n" +
+	"ConfirmWin\x12\x1e\n" +
+	"\n" +
+	"ClientUuid\x18\x01 \x01(\tR\n" +
+	"ClientUuid\x12\x18\n" +
+	"\alamport\x18\x02 \x01(\x03R\alamport\"\x82\x01\n" +
 	"\n" +
 	"BidRequest\x12\x1e\n" +
 	"\n" +
@@ -461,17 +479,11 @@ const file_proto_auction_proto_rawDesc = "" +
 	"clientUuid\x12\"\n" +
 	"\fclientReqNum\x18\x02 \x01(\x03R\fclientReqNum\x12\x18\n" +
 	"\alamport\x18\x03 \x01(\x03R\alamport\x12\x16\n" +
-	"\x06amount\x18\x04 \x01(\x03R\x06amount\"r\n" +
-	"\bBidReply\x12*\n" +
-	"\aoutcome\x18\x01 \x01(\x0e2\x10.auction.OutcomeR\aoutcome\x12\x1a\n" +
-	"\btimeLeft\x18\x02 \x01(\x03R\btimeLeft\x12\x1e\n" +
-	"\n" +
-	"highestBid\x18\x03 \x01(\x03R\n" +
-	"highestBid\",\n" +
+	"\x06amount\x18\x04 \x01(\x03R\x06amount\",\n" +
 	"\x10HeartbeatRequest\x12\x18\n" +
 	"\alamport\x18\x01 \x01(\x03R\alamport\"\x90\x01\n" +
 	"\fAuctionState\x12*\n" +
-	"\x11highest_bidder_id\x18\x01 \x01(\x03R\x0fhighestBidderId\x12\x1f\n" +
+	"\x11highest_bidder_id\x18\x01 \x01(\tR\x0fhighestBidderId\x12\x1f\n" +
 	"\vhighest_bid\x18\x02 \x01(\x03R\n" +
 	"highestBid\x12\x19\n" +
 	"\bend_time\x18\x03 \x01(\x03R\aendTime\x12\x18\n" +
@@ -479,12 +491,14 @@ const file_proto_auction_proto_rawDesc = "" +
 	"\aOutcome\x12\b\n" +
 	"\x04Fail\x10\x00\x12\v\n" +
 	"\aSuccess\x10\x01\x12\r\n" +
-	"\tException\x10\x0228\n" +
-	"\aAuction\x12-\n" +
-	"\x03Bid\x12\x13.auction.BidRequest\x1a\x11.auction.BidReply2}\n" +
+	"\tException\x10\x022v\n" +
+	"\aAuction\x124\n" +
+	"\x03Bid\x12\x13.auction.BidRequest\x1a\x18.auction.Acknowledgement\x125\n" +
+	"\n" +
+	"confirmWin\x12\x10.auction.Nothing\x1a\x15.auction.AuctionState2\x7f\n" +
 	"\x0eReplicaManager\x12/\n" +
-	"\tHeartbeat\x12\x10.auction.Nothing\x1a\x10.auction.Nothing\x12:\n" +
-	"\tReplicate\x12\x13.auction.BidRequest\x1a\x18.auction.AcknowledgementB\x0fZ\rauction/protob\x06proto3"
+	"\tHeartbeat\x12\x10.auction.Nothing\x1a\x10.auction.Nothing\x12<\n" +
+	"\tReplicate\x12\x15.auction.AuctionState\x1a\x18.auction.AcknowledgementB\x0fZ\rauction/protob\x06proto3"
 
 var (
 	file_proto_auction_proto_rawDescOnce sync.Once
@@ -505,21 +519,23 @@ var file_proto_auction_proto_goTypes = []any{
 	(*Nothing)(nil),          // 1: auction.Nothing
 	(*Bidder)(nil),           // 2: auction.Bidder
 	(*Acknowledgement)(nil),  // 3: auction.Acknowledgement
-	(*BidRequest)(nil),       // 4: auction.BidRequest
-	(*BidReply)(nil),         // 5: auction.BidReply
+	(*ConfirmWin)(nil),       // 4: auction.ConfirmWin
+	(*BidRequest)(nil),       // 5: auction.BidRequest
 	(*HeartbeatRequest)(nil), // 6: auction.HeartbeatRequest
 	(*AuctionState)(nil),     // 7: auction.AuctionState
 }
 var file_proto_auction_proto_depIdxs = []int32{
-	0, // 0: auction.BidReply.outcome:type_name -> auction.Outcome
-	4, // 1: auction.Auction.Bid:input_type -> auction.BidRequest
-	1, // 2: auction.ReplicaManager.Heartbeat:input_type -> auction.Nothing
-	4, // 3: auction.ReplicaManager.Replicate:input_type -> auction.BidRequest
-	5, // 4: auction.Auction.Bid:output_type -> auction.BidReply
-	1, // 5: auction.ReplicaManager.Heartbeat:output_type -> auction.Nothing
-	3, // 6: auction.ReplicaManager.Replicate:output_type -> auction.Acknowledgement
-	4, // [4:7] is the sub-list for method output_type
-	1, // [1:4] is the sub-list for method input_type
+	0, // 0: auction.Acknowledgement.outcome:type_name -> auction.Outcome
+	5, // 1: auction.Auction.Bid:input_type -> auction.BidRequest
+	1, // 2: auction.Auction.confirmWin:input_type -> auction.Nothing
+	1, // 3: auction.ReplicaManager.Heartbeat:input_type -> auction.Nothing
+	7, // 4: auction.ReplicaManager.Replicate:input_type -> auction.AuctionState
+	3, // 5: auction.Auction.Bid:output_type -> auction.Acknowledgement
+	7, // 6: auction.Auction.confirmWin:output_type -> auction.AuctionState
+	1, // 7: auction.ReplicaManager.Heartbeat:output_type -> auction.Nothing
+	3, // 8: auction.ReplicaManager.Replicate:output_type -> auction.Acknowledgement
+	5, // [5:9] is the sub-list for method output_type
+	1, // [1:5] is the sub-list for method input_type
 	1, // [1:1] is the sub-list for extension type_name
 	1, // [1:1] is the sub-list for extension extendee
 	0, // [0:1] is the sub-list for field type_name

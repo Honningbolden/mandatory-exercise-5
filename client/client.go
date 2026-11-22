@@ -1,4 +1,4 @@
-package auction
+package main
 
 import (
 	"context"
@@ -21,14 +21,12 @@ import (
 )
 
 type Client struct {
-	pb.UnimplementedAuctionServer
-
 	clock      int64
 	mu         sync.Mutex
 	uuid       uuid.UUID
 	highestBid int64
 	lastReqNum int64
-	servers    map[int]pb.AuctionServer
+	servers    []pb.AuctionClient
 	serverIdx  int
 }
 
@@ -45,7 +43,7 @@ func (c *Client) tick(receivedClock int64) int64 {
 	return c.clock
 }
 
-func (c *Client) makeBid(ctx context.Context, amount int64) (*pb.BidReply, error) {
+func (c *Client) makeBid(ctx context.Context, amount int64) (*pb.Acknowledgement, error) {
 	if len(c.servers) == 0 {
 		return nil, fmt.Errorf("No auction servers are configured")
 	}
@@ -64,25 +62,42 @@ func (c *Client) makeBid(ctx context.Context, amount int64) (*pb.BidReply, error
 	c.mu.Unlock()
 
 	// Make BidRequest
-	for {
-		timeoutCtx, cancel := context.WithTimeout(ctx, time.Second)
-
+	for attempt := 0; attempt < 3*len(c.servers); attempt++ {
+		timeoutCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		reply, err := c.servers[c.serverIdx].Bid(timeoutCtx, bid)
+		cancel()
 
-		isTimedout := timeoutCtx.Err() == context.DeadlineExceeded
+		if err == nil && reply.Outcome != pb.Outcome_Exception {
+			return reply, nil
+		}
+		log.Printf("Server %d could not take the big (err=%v), trying next", c.serverIdx, err)
+		c.serverIdx = (c.serverIdx + 1) % len(c.servers)
+		time.Sleep(500 * time.Millisecond)
+	}
+	return nil, fmt.Errorf("All servers are dead. Can't make bid. Closing.")
+}
+
+func (c *Client) getResult(ctx context.Context) (*pb.AuctionState, error) {
+	for attempt := 0; attempt < 3*len(c.servers); attempt++ {
+		timeoutCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		state, err := c.servers[c.serverIdx].ConfirmWin(timeoutCtx, &pb.Nothing{})
 		cancel()
 
 		if err == nil {
-			return reply, nil
+			c.tick(state.Lamport)
+			return state, nil
 		}
-		if !isTimedout {
-			return nil, err
-		}
-		if c.serverIdx+1 > len(c.servers) {
-			return nil, fmt.Errorf("All servers are dead. Can't make bid. Closing down.")
-		}
-		c.serverIdx++
+		c.serverIdx = (c.serverIdx + 1) % len(c.servers)
+		time.Sleep(500 * time.Millisecond)
 	}
+	return nil, fmt.Errorf("All servers are dead. Can't get result. Closing.")
+}
+
+func (c *Client) parseWinner(winnerId string) string {
+	if winnerId == c.uuid.String() {
+		return "you"
+	}
+	return winnerId
 }
 
 func main() {
@@ -114,7 +129,7 @@ func main() {
 		uuid:       uuid.New(),
 		highestBid: 0,
 		lastReqNum: 0,
-		servers:    make(map[int]pb.AuctionServer),
+		servers:    make([]pb.AuctionClient, len(ports)),
 		serverIdx:  0,
 	}
 
@@ -129,32 +144,28 @@ func main() {
 
 	ctx := context.Background()
 
-	var auctionEndtime int64
-	var auctionHighestBid int64
-
 	for {
-		if (auctionEndtime > time.Now().Unix()) {
-			
+		state, err := client.getResult(ctx)
+		if err != nil {
+			log.Fatal(err)
 		}
-		time.Sleep(time.Duration(min(rand.IntN(5000), 1000)) * time.Millisecond)
+		if state.EndTime != 0 && time.Now().UnixMilli() >= state.EndTime { // Endtime 0 means there are no bids yet
+			fmt.Printf("Auction over. Winner is %s with %d\n", client.parseWinner(state.HighestBidderId), state.HighestBid)
+			return
+		}
 
-		bidAmount := rand.Int64N(client.highestBid) + client.highestBid/2
+		bidAmount := max(state.HighestBid-5+rand.Int64N(20), 0) // Make some bids too low, and make all bids above greater than or equal to 0
 		reply, err := client.makeBid(ctx, bidAmount)
 		if err != nil {
 			log.Fatal(err)
 		}
 		switch reply.Outcome {
-			case pb.Outcome_Success {
-				fmt.Println("You're the highest bidder.")
-			}
-			case pb.Outcome_Fail {
-				fmt.Println("You're big was too low.")
-			}
+		case pb.Outcome_Success:
+			fmt.Printf("Bid %d: you're the highest bidder.\n", bidAmount)
+		case pb.Outcome_Fail:
+			fmt.Printf("Bid %d: you're bid was too low and wasn't accepted, or the auction has ended.\n", bidAmount)
 		}
-		auctionHighestBid = reply.HighestBid
-		auctionTimeleft = reply.TimeLeft
-
-		fmt.Println(reply)
+		time.Sleep(time.Duration(500+rand.IntN(1000)) * time.Millisecond)
 	}
 
 }

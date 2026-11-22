@@ -19,14 +19,16 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Auction_Bid_FullMethodName = "/auction.Auction/Bid"
+	Auction_Bid_FullMethodName        = "/auction.Auction/Bid"
+	Auction_ConfirmWin_FullMethodName = "/auction.Auction/confirmWin"
 )
 
 // AuctionClient is the client API for Auction service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AuctionClient interface {
-	Bid(ctx context.Context, in *BidRequest, opts ...grpc.CallOption) (*BidReply, error)
+	Bid(ctx context.Context, in *BidRequest, opts ...grpc.CallOption) (*Acknowledgement, error)
+	ConfirmWin(ctx context.Context, in *Nothing, opts ...grpc.CallOption) (*AuctionState, error)
 }
 
 type auctionClient struct {
@@ -37,10 +39,20 @@ func NewAuctionClient(cc grpc.ClientConnInterface) AuctionClient {
 	return &auctionClient{cc}
 }
 
-func (c *auctionClient) Bid(ctx context.Context, in *BidRequest, opts ...grpc.CallOption) (*BidReply, error) {
+func (c *auctionClient) Bid(ctx context.Context, in *BidRequest, opts ...grpc.CallOption) (*Acknowledgement, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(BidReply)
+	out := new(Acknowledgement)
 	err := c.cc.Invoke(ctx, Auction_Bid_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *auctionClient) ConfirmWin(ctx context.Context, in *Nothing, opts ...grpc.CallOption) (*AuctionState, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AuctionState)
+	err := c.cc.Invoke(ctx, Auction_ConfirmWin_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +63,8 @@ func (c *auctionClient) Bid(ctx context.Context, in *BidRequest, opts ...grpc.Ca
 // All implementations must embed UnimplementedAuctionServer
 // for forward compatibility.
 type AuctionServer interface {
-	Bid(context.Context, *BidRequest) (*BidReply, error)
+	Bid(context.Context, *BidRequest) (*Acknowledgement, error)
+	ConfirmWin(context.Context, *Nothing) (*AuctionState, error)
 	mustEmbedUnimplementedAuctionServer()
 }
 
@@ -62,8 +75,11 @@ type AuctionServer interface {
 // pointer dereference when methods are called.
 type UnimplementedAuctionServer struct{}
 
-func (UnimplementedAuctionServer) Bid(context.Context, *BidRequest) (*BidReply, error) {
+func (UnimplementedAuctionServer) Bid(context.Context, *BidRequest) (*Acknowledgement, error) {
 	return nil, status.Error(codes.Unimplemented, "method Bid not implemented")
+}
+func (UnimplementedAuctionServer) ConfirmWin(context.Context, *Nothing) (*AuctionState, error) {
+	return nil, status.Error(codes.Unimplemented, "method ConfirmWin not implemented")
 }
 func (UnimplementedAuctionServer) mustEmbedUnimplementedAuctionServer() {}
 func (UnimplementedAuctionServer) testEmbeddedByValue()                 {}
@@ -104,6 +120,24 @@ func _Auction_Bid_Handler(srv interface{}, ctx context.Context, dec func(interfa
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Auction_ConfirmWin_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Nothing)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuctionServer).ConfirmWin(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Auction_ConfirmWin_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuctionServer).ConfirmWin(ctx, req.(*Nothing))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Auction_ServiceDesc is the grpc.ServiceDesc for Auction service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -114,6 +148,10 @@ var Auction_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Bid",
 			Handler:    _Auction_Bid_Handler,
+		},
+		{
+			MethodName: "confirmWin",
+			Handler:    _Auction_ConfirmWin_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
@@ -130,7 +168,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ReplicaManagerClient interface {
 	Heartbeat(ctx context.Context, in *Nothing, opts ...grpc.CallOption) (*Nothing, error)
-	Replicate(ctx context.Context, in *BidRequest, opts ...grpc.CallOption) (*Acknowledgement, error)
+	Replicate(ctx context.Context, in *AuctionState, opts ...grpc.CallOption) (*Acknowledgement, error)
 }
 
 type replicaManagerClient struct {
@@ -151,7 +189,7 @@ func (c *replicaManagerClient) Heartbeat(ctx context.Context, in *Nothing, opts 
 	return out, nil
 }
 
-func (c *replicaManagerClient) Replicate(ctx context.Context, in *BidRequest, opts ...grpc.CallOption) (*Acknowledgement, error) {
+func (c *replicaManagerClient) Replicate(ctx context.Context, in *AuctionState, opts ...grpc.CallOption) (*Acknowledgement, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Acknowledgement)
 	err := c.cc.Invoke(ctx, ReplicaManager_Replicate_FullMethodName, in, out, cOpts...)
@@ -166,7 +204,7 @@ func (c *replicaManagerClient) Replicate(ctx context.Context, in *BidRequest, op
 // for forward compatibility.
 type ReplicaManagerServer interface {
 	Heartbeat(context.Context, *Nothing) (*Nothing, error)
-	Replicate(context.Context, *BidRequest) (*Acknowledgement, error)
+	Replicate(context.Context, *AuctionState) (*Acknowledgement, error)
 	mustEmbedUnimplementedReplicaManagerServer()
 }
 
@@ -180,7 +218,7 @@ type UnimplementedReplicaManagerServer struct{}
 func (UnimplementedReplicaManagerServer) Heartbeat(context.Context, *Nothing) (*Nothing, error) {
 	return nil, status.Error(codes.Unimplemented, "method Heartbeat not implemented")
 }
-func (UnimplementedReplicaManagerServer) Replicate(context.Context, *BidRequest) (*Acknowledgement, error) {
+func (UnimplementedReplicaManagerServer) Replicate(context.Context, *AuctionState) (*Acknowledgement, error) {
 	return nil, status.Error(codes.Unimplemented, "method Replicate not implemented")
 }
 func (UnimplementedReplicaManagerServer) mustEmbedUnimplementedReplicaManagerServer() {}
@@ -223,7 +261,7 @@ func _ReplicaManager_Heartbeat_Handler(srv interface{}, ctx context.Context, dec
 }
 
 func _ReplicaManager_Replicate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(BidRequest)
+	in := new(AuctionState)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -235,7 +273,7 @@ func _ReplicaManager_Replicate_Handler(srv interface{}, ctx context.Context, dec
 		FullMethod: ReplicaManager_Replicate_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ReplicaManagerServer).Replicate(ctx, req.(*BidRequest))
+		return srv.(ReplicaManagerServer).Replicate(ctx, req.(*AuctionState))
 	}
 	return interceptor(ctx, in, info, handler)
 }

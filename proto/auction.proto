@@ -5,13 +5,13 @@ package auction;
 option go_package = "auction/proto";
 
 service Auction {
-    rpc Bid(BidRequest) returns (BidReply);
+    rpc Bid(BidRequest) returns (Acknowledgement);
     rpc confirmWin(Nothing) returns (AuctionState);
 }
 
 service ReplicaManager {
     rpc Heartbeat(Nothing) returns (Nothing);
-    rpc Replicate(BidRequest) returns (Acknowledgement);
+    rpc Replicate(AuctionState) returns (Acknowledgement);
 }
 
 enum Outcome {
@@ -50,7 +50,7 @@ message HeartbeatRequest {
 }
 
 message AuctionState {
-  int64 highest_bidder_id = 1;
+  string highest_bidder_id = 1;
   int64 highest_bid = 2;
   int64 end_time = 3;
   int64 lamport = 4;
